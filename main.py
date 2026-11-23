@@ -35,17 +35,21 @@ def run_shell(command: str) -> str:
     for deny in DENY_LIST:
         if deny in command:
             return f"Blocked: {deny} is dangerous, we can not execute it."
-
-    res = subprocess.run(
-        command,
-        shell=True,
-        errors="replace",
-        capture_output=True,
-        text=True,
-        timeout=120,
-        cwd=os.getcwd(),
-    )
-
+    try:
+        res = subprocess.run(
+            command,
+            shell=True,
+            errors="replace",
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=os.getcwd(),
+        )
+    except subprocess.TimeoutExpired:
+        return f"Command time out after 120s"
+    except OSError:
+        return f"Could not execute command: {command}"
+    
     output = (res.stdout + res.stderr).strip()
     return output[:50000] if output else "(no output)"
 
@@ -91,7 +95,13 @@ def agent_loop(messages: list):
 if __name__ == "__main__":
     history = []
     while True:
-        query = input("\033[036m> \033[0m").strip()
+        try:
+            query = input("\033[036m> \033[0m").strip()
+        except EOFError:
+            break
+        except KeyboardInterrupt:
+            print() #为了不让下一条终端提示符接在 CTRL + C 后面
+            break
         if not query:
             continue
         if query.lower() in ("quit", "q", "exit"):
