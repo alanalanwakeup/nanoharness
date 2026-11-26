@@ -3,6 +3,9 @@ import os
 import subprocess
 from dotenv import load_dotenv
 import json
+from pathlib import Path
+
+WORKDIR = os.getcwd()
 
 load_dotenv(override=True)
 
@@ -21,6 +24,20 @@ TOOLS = [
 client = Anthropic()
 
 DENY_LIST = ("rm -rf /", "shutdown", "reboot")
+        
+def run_read(path: Path) -> str:
+    path = (WORKDIR / path).resolve()
+    if not path.is_relative_to(WORKDIR):
+        return f"{path} is out of workspace"
+    output = path.read_text(encoding="utf-8")
+    return output
+
+def run_write(path: Path, text: str) -> str:
+    path = (WORKDIR / path).resolve()
+    if not path.is_relative_to(WORKDIR):
+        return f"{path} is out of workspace"
+    output = path.write_text(text, encoding="utf-8")
+    return f"{output} characters has been written in {path}"
 
 
 def write_api_log(record: dict) -> None:
