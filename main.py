@@ -4,8 +4,9 @@ import subprocess
 from dotenv import load_dotenv
 import json
 from pathlib import Path
+import glob
 
-WORKDIR = os.getcwd()
+WORKDIR = Path.cwd()
 
 load_dotenv(override=True)
 
@@ -18,6 +19,70 @@ TOOLS = [
             "properties": {"command": {"type": "string"}},
             "required": ["command"],
         },
+    },
+    {
+        "name": "write",
+        "description": "write text into a file.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            },
+            "required": ["path", "text"]
+        }
+    },
+    {
+        "name": "read",
+        "description": "read content from a file.",
+        "input_schema": {
+            "tyep": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                }
+            },
+            "required": ["path"]
+        }
+    },
+    {
+        "name": "edit",
+        "description": "repalce exact file content from old_text to new_text.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "old_text": {
+                    "type": "string"
+                },
+                "new_text": {
+                    "type": "string"
+                }
+            },
+            "required": ["path", "old_text", "new_text"]
+        }
+    },
+    {
+        "name": "find_paths",
+        "description": "Find files and directories under a given directory that match a glob pattern.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                },
+                "pattern": {
+                    "type": "string",
+                }
+            },
+            "required": ["path", "pattern"]
+        }
     }
 ]
 
@@ -37,8 +102,27 @@ def run_write(path: Path, text: str) -> str:
     if not path.is_relative_to(WORKDIR):
         return f"{path} is out of workspace"
     output = path.write_text(text, encoding="utf-8")
-    return f"{output} characters has been written in {path}"
+    return f"wrote {output} characters to {path}"
 
+def run_edit(path: Path, old_text: str, new_text) -> str:
+    path = (WORKDIR / path).resolve()
+    if not path.is_relative_to(WORKDIR):
+        return f"{path} is out of space"
+    text = path.read_text(encoding="utf-8")
+    if old_text not in text:
+        return f"{old_text} not found"
+    path.write_text(text.replace(old_text, new_text, 1), encoding="utf-8")
+    return f"edited {path}"
+
+def run_glob(path: Path, pattern: str) -> str:
+    path = (WORKDIR / path).resolve()
+    if not path.is_relative_to(WORKDIR):
+        return f"{path} is out of workspace"
+    matches =  (match for match in glob.glob(
+        pattern, root_dir=path, recursive=True
+    ) if (path / match).resolve().is_relative_to(WORKDIR))
+    return "\n".join(matches) or "no match"
+    
 
 def write_api_log(record: dict) -> None:
     line = json.dumps(
@@ -71,6 +155,22 @@ def run_shell(command: str) -> str:
     return output[:50000] if output else "(no output)"
 
 
+TOOL_HANDLERS = {
+    "shell": run_shell,
+    "read": run_read,
+    "write": run_write,
+    "edit": run_edit,
+    "find_paths": run_glob
+}
+
+def execute_tools(tool_name: str, args: dict) -> str:
+    tool = TOOL_HANDLERS[tool_name]
+    print(f"\033[033m{tool_name}\033[0m")
+    output = tool(**args)
+    print(f"\033[090m{output}\033[0m")
+    return output
+
+
 def agent_loop(messages: list):
     while True:
         write_api_log(
@@ -99,10 +199,8 @@ def agent_loop(messages: list):
         tool_results = []
 
         for block in tool_call:
-            command = block.input["command"]
-            print(f"\033[033m{command}\033[0m")
-            output = run_shell(command)
-            print(f"\033[090m{output}\033[0m")
+            output = execute_tools(block.name, block.input)
+
             tool_results.append(
                 {"type": "tool_result", "tool_use_id": block.id, "content": output}
             )
