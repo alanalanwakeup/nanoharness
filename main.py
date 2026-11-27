@@ -40,7 +40,7 @@ TOOLS = [
         "name": "read",
         "description": "read content from a file.",
         "input_schema": {
-            "tyep": "object",
+            "type": "object",
             "properties": {
                 "path": {
                     "type": "string"
