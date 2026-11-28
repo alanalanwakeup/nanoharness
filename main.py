@@ -8,6 +8,10 @@ import glob
 
 WORKDIR = Path.cwd()
 
+white = "\033[97m"
+yellow = "\033[33m"
+reset = "\033[0m"
+
 load_dotenv(override=True)
 
 TOOLS = [
@@ -165,9 +169,13 @@ TOOL_HANDLERS = {
 
 def execute_tools(tool_name: str, args: dict) -> str:
     tool = TOOL_HANDLERS[tool_name]
-    print(f"\033[033m{tool_name}\033[0m")
+
+    if tool_name == "shell":
+        print(f"{white}$ {args["command"]}{reset}")
+    else:
+        print(f"{white}{tool_name} {yellow}{args["path"]}{reset}")
     output = tool(**args)
-    print(f"\033[090m{output}\033[0m")
+    print(f"\033[090m{output}\033[0m\n")
     return output
 
 
